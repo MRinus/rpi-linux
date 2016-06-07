@@ -252,8 +252,24 @@ static void bcm2835_dma_create_cb_set_length(
 	 */
 
 	/* have we filled in period_length yet? */
-	if (*total_len + control_block->length < period_len)
+	if (*total_len + control_block->length < period_len) {
+		/*
+		 * If the next control block is the last in the period
+		 * and it's length would be less than half of max_len
+		 * change it so that both control blocks are (almost)
+		 * equally long. This avoids generating very short
+		 * control blocks (worst case would be 4 bytes) which
+		 * might be problematic. We also have to make sure the
+		 * new length is a multiple of 4 bytes.
+		 */
+		if (*total_len + control_block->length + max_len / 2 >
+		    period_len) {
+			control_block->length =
+				DIV_ROUND_UP(period_len - *total_len, 8) * 4;
+		}
+		*total_len += control_block->length;
 		return;
+	}
 
 	/* calculate the length that remains to reach period_length */
 	control_block->length = period_len - *total_len;
